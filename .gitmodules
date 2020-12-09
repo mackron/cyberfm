@@ -1,0 +1,6 @@
+[submodule "source/external/minifs"]
+	path = source/external/minifs
+	url = https://github.com/mackron/minifs.git
+[submodule "source/external/dr_libs"]
+	path = source/external/dr_libs
+	url = https://github.com/mackron/dr_libs.git

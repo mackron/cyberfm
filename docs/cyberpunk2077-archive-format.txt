@@ -1,0 +1,288 @@
++=================================================================================================+
+|                                                                                                 |
+|                                                                                                 |
+|                               Cyberpunk 2077 Archive File Format                                |
+|                                                                                                 |
+|                                 David Reid - mackron@gmail.com                                  |
+|                                                                                                 |
+|                                                                                                 |
++=================================================================================================+
+
+Introduction
+============
+This is a brief description of the Cyberpunk 2077 archive file format. These are the .archive files
+you'll find in the "archive/pc/content" folder of your Cyberpunk 2077 installation. This does not
+include details of the individual files stored within the archives - that's a much more complicated
+problem, and something for another day.
+
+I don't make any guarantees about the accuracy of the information here. I figured out all of this
+through simple pattern matching and logical reasoning (and maybe a little bit of experience with
+this kind of stuff in the past).
+
+I've written what you might call a reference implementation in C which I've tried to keep clean and
+easy to read. I'm not attaching any license to this code and I encourage you to do whatever you'd
+like with it. If you have ideas on improvements I'd be more than happy to listen. Fire me an email
+or send a message on Discord or file an issue on GitHub. Below are some links on how to contact me
+and where you can find the source code:
+
+    Source Code: https://github.com/mackron/cyberfm
+    Email:       mackron@gmail.com
+    Discord:     https://discord.gg/9vpqbjU
+    Twitter:     https://twitter.com/mackron
+    
+
+Overall Structure
+=================
+The Cyberpunk 2077 archive file format is fairly typical of most archival/package file formats and
+follows the following overall structure:
+
+    +-------------------+
+    | Header            |
+    +-------------------+
+    | Raw File Data     |
+    +-------------------+
+    | Central Directory |
+    +-------------------+
+    
+The header includes fairly standard details including things like a typical FourCC signature, total
+size of the archive, and central directory offset and size.
+
+Following the header (and what appears to be some padding) is the raw data of each of individual
+file contained within the archive. Most of the time this data is compressed (more on this later,
+but for the impatient, it's Oodle). Before you'll be able to extract the data you'll need to parse
+the central directory, which is located at the end.
+
+The central directory is essentially just a list of items that describe the data for each
+individual file, such as it's hashed name (more on this later), it's size and it's offset within
+the archive.
+
+Everything in the archive is little endian aligned to 4 bytes.
+
+
+Header
+======
+The header is simple, and follows this structure:
+
+    +---------------+-----------------------------------------------------------------------------+
+    | Size In Bytes | Description                                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | FourCC - "RDAR"                                                             |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Unknown - Always 0x0C000000                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Central directory offset in bytes, starting from the start of the archive.  |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Central directory size in bytes.                                            |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Unknown - Always seems to 0.                                                |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | The size in bytes of the archive.                                           |
+    +---------------+-----------------------------------------------------------------------------+
+    | 132           | Unknown. Padding? Always seems to be 0.                                     |
+    +---------------+-----------------------------------------------------------------------------+
+
+Most of the header is self-explanatory. All offsets are relative to the first byte of the archive.
+The only variable you strictly need from the header is the offset of the central directory. You may
+want to inspect the other values for validation, however.
+
+
+Central Directory
+=================
+The central directory is the hardest part of the extraction process. Not including the header, the
+central directory is divided up into three parts, but I've not figured out what one of those
+sections means. It doesn't seem to affect the extraction process, however. This is the overall
+structure of the central directory:
+
+    +------------------------+
+    | Header                 |
+    +------------------------+
+    | File Listing           |
+    +------------------------+
+    | File Offsets and Sizes |
+    +------------------------+
+    | Unknown                |
+    +------------------------+
+
+Unintuitively, the "File Listing", "File Offsets and Sizes" and "Unknown" items all contain a
+different number of items within each other. You would expect there to be one item for each file,
+but this is not the case. I will explain this in a bit.
+
+This is the structure of the "Header" section:
+
+    +---------------+-----------------------------------------------------------------------------+
+    | Size In Bytes | Description                                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Unknown. Some kind of FourCC? Always set to 0x08000000.                     |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Size in bytes, minus the first 8 bytes.                                     |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Unknown. Seems random. Maybe a hash or CRC of some kind?                    |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The number of items in the "File Listing" section.                          |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The number of items in the "File Offsets and Sizes" section.                |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The number of items in the "Unknown" section.                               |
+    +---------------+-----------------------------------------------------------------------------+
+    
+The important parts here are the last three values. The "File Listing", "File Offsets and Sizes"
+and "Unknown" sections of the central directory are made up of a list of fixed sized items.
+
+You would intuitively think there would just be one item for each file, but that is not the case.
+It looks like Cyberpunk 2077 may have the notion of something like sub-files? I'm not entirely
+sure, but for each item in the "File Listing" section, there will be one or more items in the "File
+Offsets and Sizes" section. What I'm thinking it *might* be, and I could be completely wrong here,
+is that perhaps it's for logically related file. For example, consider a 3D model which might have
+a number of materials associated with it. Maybe one file (sub-file 0 most likely) is the main file
+(the 3D model in this example), and then there is a sub-file for each of it's materials. I'm not
+sure on this, but it's the only idea I've got. In any case, think of the items in "File Listing" as
+the normal file count, and the items in "File Offsets and Sizes" as each of the sub-files.
+
+
+File Listing
+------------
+The "File Listing" section contains a list of files by their hashed name. Each item is 56 bytes,
+which means the total size of this section is equal to the value from the central directory header
+multiplied by 56. This is the structure for each item in the "File Listing" section:
+
+    +---------------+-----------------------------------------------------------------------------+
+    | Size In Bytes | Description                                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Hashed name.                                                                |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Unconfirmed, but looks suspiciously like a last modified time               |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Unknown. Suspecting a file type identifier, but not sure.                   |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The index of the first sub-file in the "File Offsets and Sizes" list.       |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The non-inclusive index of the last sub-file in the "File Offsets and       |
+    |               | Sizes" list.                                                                |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The index of the first item in the "Unknown" list.                          |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | The non-inclusive index of the last item in the "Unknown" list.             |
+    +---------------+-----------------------------------------------------------------------------+
+    | 20            | Unconfirmed, but heavily suspecting this is a SHA-1 hash because it's 20    |
+    |               | bytes and seemingly random in nature.                                       |
+    +---------------+-----------------------------------------------------------------------------+
+    
+Unfortunately human readable file names are not included in the archive. Instead they're identified
+by their hashed value. I do not know what hashing algorithm is used, but it's not important for
+extracting the data.
+
+You will note that a range is used as a lookup into the "File Offsets and Sizes" and "Unknown"
+sections. It's important to note that the end index is non-inclusive. To get a count, do this:
+
+    subFileCount = rangeEnd - rangeBeg
+    
+Also note that if the end index is equal to the begging index that there is no item in the
+respective list for that file and you should not be attempting to extract that data. If you were to
+do this you'd end up pulling the data that belongs to another file. This is especially relevant
+when accessing the "Unknown" list because most files won't actually have any data in there.
+
+
+File Offsets and Sizes
+----------------------
+The "File Offsets and Sizes" section is where you'll find the offset, compressed size and
+uncompressed size of each of the sub-files for a given file in the "File Listing" section. Each
+item in this list is 16 bytes. This is the structure for each item in the "File Offsets and Sizes"
+section:
+
+    +---------------+-----------------------------------------------------------------------------+
+    | Size In Bytes | Description                                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Offset in bytes, starting from the start of the archive.                    |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Compressed size in bytes.                                                   |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Uncompressed size in bytes.                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    
+This section should be easy to understand. The offset is relative to the first byte of the archive.
+Sub-files may or may not be compressed. When not compressed, the compressed size and uncompressed
+sizes will be the same. Otherwise they'll be compressed.
+
+    isCompressed = compressedSize != uncompressedSize;
+
+
+Unknown Section
+---------------
+For the life of me I have no idea what this section is intended for. So far it doesn't *seem* to
+affect anything with the extraction of data. I'm suspecting it's a game-specific thing. This is
+the structure of each item, each of which is 8 bytes.
+
+    +---------------+-----------------------------------------------------------------------------+
+    | Size In Bytes | Description                                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 8             | Unknown.                                                                    |
+    +---------------+-----------------------------------------------------------------------------+
+    
+And until more information is discovered, that's all there is to say about that part.
+
+
+File Data
+=========
+Once the central directory has been processed it becomes trivial to extract the data of each file.
+The pseudo code below is a general flow of how you would do it (assuming the central directory has
+been loaded):
+
+```
+[Load Central Directory First]
+
+...
+
+for each File in "File Listing" do
+    for iSubFile = iSubFileRangeBeg; iSubFile < iSubFileRangeEnd; iSubFile += 1 do
+        if "File Offsets and Sizes"[iSubFile].IsCompressed() then
+            // Compressed. Decompress with Oodle.
+        else
+            // Decompressed. Copy file data verbatim.
+        end 
+    end
+end
+```
+
+File data may or may not be compressed. To determine if a sub-file is compressed, compare the
+compressed size to the uncompressed size. If they differ it's compressed, otherwise it's
+decompressed.
+
+Uncompressed data is easy - just copy straight from the archive, using the offset to determine
+where to start copying from. For compressed data you need to use Oodle. Unfortunately Oodle is a
+closed sourced commercial product, but there's ways to use it. The reference code mentioned above
+will attempt to load an Oodle DLL at runtime. At the time of writing Cyberpunk 2077 has not yet
+been released (I'm using pre-loaded data to figure out this stuff) and does not include an Oodle
+DLL, either because it's statically linked or because it's not included with the pre-load data. I
+got my copy from Doom Eternal. :)
+
+Compressed files have the following general structure:
+
+    +---------------+-----------------------------------------------------------------------------+
+    | Size In Bytes | Description                                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | FourCC - "KARK"                                                             |
+    +---------------+-----------------------------------------------------------------------------+
+    | 4             | Uncompressed size in bytes.                                                 |
+    +---------------+-----------------------------------------------------------------------------+
+    | ?             | Compressed data.                                                            |
+    +---------------+-----------------------------------------------------------------------------+
+
+If you don't care about validation, you don't actually need to look at the first 8 bytes because
+it's already given to you at an earlier stage. To decompress the data, all you need to do is call
+Oodle's decompress function, starting from the 9th byte. On output you'll have the uncompressed
+data just like magic. See the reference code for the Oodle function call.
+
+
+Conclusion
+==========
+I think that's about it. You should have enough information now to extract some data. This is the
+easy part. The hard part will come when we try to figure out the format of each od the individual
+files within each archive!
+
+Feel free to reach out if you have any feedback. I'm particular interested in ideas on what the
+unknowns might be related to. I'm also wanting to start work on figuring out the format of each of
+the specific asset file formats (what are those "CR2W" files?!) so any help in that regard would be
+welcome.
+
+
+    David Reid
