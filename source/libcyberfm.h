@@ -43,6 +43,11 @@ These function signatures were taken from the ZenHAX forum:
 
 Also thanks to this forum post regarding compression signatures for the tip about Oodle:
     https://zenhax.com/viewtopic.php?t=27
+
+Side note. I discovered the ZenHAX forums while searching around for this compression stuff and found that
+their community is also working on this. If you're interested in this stuff, that'll probably be a good
+source of information going forward as well.
+    https://zenhax.com/viewtopic.php?f=9&t=14565
 */
 typedef int (* cyberfm_OodleLZ_Decompress_proc)(unsigned char* pCompressedData, int compressedSize, unsigned char* pDecompressedData, int decompressedSize, int a, int b, int c, void* d, void* e, void* f, void* g, void* h, void* i, int j);
 
