@@ -26,6 +26,27 @@ have any suggestions or feature requests and I'll consider it.
 The code is public domain. I encourage you to do whatever you like with it!
 Just make sure you don't go around redistributing any of the extracted assets.
 
+To compile the code, make sure you first recursively clone this repository so
+that sub-module dependencies are included. Then just compile cyberfm.c for the
+extraction program, or libcyberfm.c if you're only after the library part.
+
+
+Extractor
+---------
+At the moment the extractor is just a simple command line tool. Specify the
+archive you want to extract and include "--extract" on the command line, with
+an optional output directory.
+
+    cyberfm "inputfile.archive" -o "outputdir" --extract
+    
+The "--extract" switch is necessary (it feels like it should be necessary, I
+know - I'll clean that up later).
+
+I've only done very limited testing, but I was able to extract all of the
+archives that come with the game so it should be mostly working. Submit a bug
+report if you encounter any problems.
+
+
 -------------------------------------------------------------------------------
 
 This is free and unencumbered software released into the public domain.
