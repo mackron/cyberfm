@@ -1,6 +1,6 @@
 A simple Cyberpunk 2077 archive extractor.
 
-See docs/cyberpunk2077-archive-format.txt for details on the file format.
+See [cyberpunk2077-archive-format.txt](https://raw.githubusercontent.com/mackron/cyberfm/master/docs/cyberpunk2077-archive-format.txt) for details on the file format.
 
 Thanks to the ZenHAX forums which I only just discovered while searching for
 some hints on the compression algorithm. There's a Cyberpunk 2077 post running
