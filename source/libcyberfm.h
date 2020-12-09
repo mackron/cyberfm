@@ -128,7 +128,7 @@ struct cyberfm_file
     cyberfm_archive* pArchive;
     uint64_t cursor;
     uint64_t size;
-    uint8_t pData[1];   /* Lazy implementation for now - I'm just allocating all of the memory for the file on the heap. This won't scale. This is where memory mapping the archive would come in handy. */
+    uint8_t pData[1];   /* I'm just allocating all of the memory for the file on the heap. Would be good to support dynamically decompressing on demand, but not practical with the tools we have available. */
 };
 
 cyberfm_result cyberfm_archive_init(const char* pFilePath, cyberfm_archive* pArchive);
